@@ -75,6 +75,20 @@
         .logout-btn:hover {
             background-color: #DC2626;
         }
+
+        .sync-btn {
+            background-color: #FFB800;
+            color: #0A2D6E;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+
+        .sync-btn:hover { background-color: #E6A700; }
+        .sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         
         /* Container principal */
         .container {
@@ -352,15 +366,54 @@
         </ul>
         <div class="navbar-user">
             <span>{{ user.username }}</span>
+            <button id="sync-btn" onclick="lancerSync()" class="sync-btn">Synchroniser</button>
             <a href="{% url 'logout' %}" class="logout-btn">Déconnexion</a>
         </div>
     </nav>
-    
+    <div id="sync-banner" style="display:none; padding:0.6rem 2rem; font-size:0.9rem; font-weight:600;"></div>
+
     <div class="container">
         {% block content %}{% endblock %}
     </div>
     
     <script>
+        function lancerSync() {
+            const btn = document.getElementById('sync-btn');
+            const banner = document.getElementById('sync-banner');
+            btn.disabled = true;
+            btn.textContent = 'Synchronisation...';
+            banner.style.display = 'none';
+
+            fetch("{% url 'sync_kobo' %}", {
+                method: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            })
+            .then(r => r.json())
+            .then(data => {
+                banner.style.display = 'block';
+                if (data.success) {
+                    banner.style.backgroundColor = '#D1FAE5';
+                    banner.style.color = '#065F46';
+                    banner.textContent = data.message;
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    banner.style.backgroundColor = '#FEE2E2';
+                    banner.style.color = '#991B1B';
+                    banner.textContent = 'Erreur : ' + data.message;
+                    btn.disabled = false;
+                    btn.textContent = 'Synchroniser';
+                }
+            })
+            .catch(() => {
+                banner.style.display = 'block';
+                banner.style.backgroundColor = '#FEE2E2';
+                banner.style.color = '#991B1B';
+                banner.textContent = 'Erreur de connexion.';
+                btn.disabled = false;
+                btn.textContent = 'Synchroniser';
+            });
+        }
+
         // Script pour les onglets
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
