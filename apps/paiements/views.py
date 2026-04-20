@@ -68,7 +68,7 @@ def transport_view(request):
         context.update({
             'agents': agents_filtres,
             'total_transport': data['total_transport'],
-            'total_agents': len(data['total_agents']),
+            'total_agents': data['total_agents'],
             'performance_par_team': data.get('performance_par_team', {}),
             'meilleure_team': data.get('meilleure_team'),
             'service': TransportService,

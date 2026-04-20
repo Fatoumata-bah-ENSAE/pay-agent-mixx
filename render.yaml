@@ -20,7 +20,7 @@ services:
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
-        value: mixxpay-agents.onrender.com
+        value: pay-agent-mixx.onrender.com
       - key: KOBO_TOKEN
         sync: false
       - key: KOBO_UID_CREATION

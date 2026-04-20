@@ -41,6 +41,7 @@ class CreationMarchand(models.Model):
     Soumission de création de marchand (formulaire opener)
     """
     opener = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name='creations')
+    kobo_id = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="ID Kobo")
     numero_marchand = models.CharField(max_length=15, unique=True, verbose_name="Numéro marchand")
     nom_structure = models.CharField(max_length=200, blank=True, verbose_name="Nom structure")
     type_structure = models.CharField(max_length=50, blank=True, verbose_name="Type structure")
@@ -66,6 +67,7 @@ class SuiviMarchand(models.Model):
     Soumission de suivi marchand (formulaire animateur)
     """
     animateur = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name='suivis')
+    kobo_id = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="ID Kobo")
     numero_marchand = models.CharField(max_length=15, verbose_name="Numéro marchand")
     numero_client = models.CharField(max_length=15, verbose_name="Numéro client")
     montant = models.DecimalField(max_digits=12, decimal_places=0, verbose_name="Montant")

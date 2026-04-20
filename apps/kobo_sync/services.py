@@ -183,6 +183,7 @@ class KoboService:
             
             # Préparer la création marchand
             creations_a_inserer.append({
+                'kobo_id': str(submission.get('_id', '')),
                 'numero_marchand': numero_marchand,
                 'opener_numero': numero_opener,
                 'nom_structure': nom_structure,
@@ -215,6 +216,7 @@ class KoboService:
                 CreationMarchand.objects.get_or_create(
                     numero_marchand=creation['numero_marchand'],
                     defaults={
+                        'kobo_id': creation['kobo_id'],
                         'opener': opener,
                         'nom_structure': creation['nom_structure'],
                         'type_structure': creation['type_structure'],
@@ -303,6 +305,7 @@ class KoboService:
             
             # Préparer le suivi
             suivis_a_inserer.append({
+                'kobo_id': str(submission.get('_id', '')),
                 'animateur_numero': numero_animateur,
                 'numero_marchand': numero_marchand,
                 'numero_client': numero_client,
@@ -314,38 +317,40 @@ class KoboService:
                 'date_activite': start_date.date(),
             })
         
-        # Mettre à jour les agents
+        # Mettre à jour les agents sans écraser est_opener si déjà True
         for numero, agent_data in agents_a_mettre_a_jour.items():
-            agent, created = Agent.objects.update_or_create(
+            agent, created = Agent.objects.get_or_create(
                 numero=numero,
-                defaults=agent_data
+                defaults={'est_animateur': True, 'est_opener': False}
             )
             if created:
                 print(f"  Créé agent animateur: {numero}")
-            else:
-                # Si l'agent existe déjà, on met à jour est_animateur
-                if not agent.est_animateur:
-                    agent.est_animateur = True
-                    agent.save()
-                    print(f"  Mis à jour agent (ajout rôle animateur): {numero}")
+            elif not agent.est_animateur:
+                agent.est_animateur = True
+                agent.save()
+                print(f"  Mis à jour agent (ajout rôle animateur): {numero}")
         
-        # Insérer les suivis (pas de déduplication)
+        # Insérer les suivis (idempotent via kobo_id)
         suivis_count = 0
         for suivi in suivis_a_inserer:
             try:
                 animateur = Agent.objects.get(numero=suivi['animateur_numero'])
-                SuiviMarchand.objects.create(
-                    animateur=animateur,
-                    numero_marchand=suivi['numero_marchand'],
-                    numero_client=suivi['numero_client'],
-                    montant=suivi['montant'],
-                    application_paiement=suivi['application_paiement'],
-                    profil_marchand=suivi['profil_marchand'],
-                    type_structure=suivi['type_structure'],
-                    date_soumission=suivi['date_soumission'],
-                    date_activite=suivi['date_activite'],
+                _, created = SuiviMarchand.objects.get_or_create(
+                    kobo_id=suivi['kobo_id'],
+                    defaults={
+                        'animateur': animateur,
+                        'numero_marchand': suivi['numero_marchand'],
+                        'numero_client': suivi['numero_client'],
+                        'montant': suivi['montant'],
+                        'application_paiement': suivi['application_paiement'],
+                        'profil_marchand': suivi['profil_marchand'],
+                        'type_structure': suivi['type_structure'],
+                        'date_soumission': suivi['date_soumission'],
+                        'date_activite': suivi['date_activite'],
+                    }
                 )
-                suivis_count += 1
+                if created:
+                    suivis_count += 1
             except Agent.DoesNotExist:
                 print(f"  Erreur: Agent animateur {suivi['animateur_numero']} non trouvé")
         

@@ -147,7 +147,7 @@ class TransportService:
         return {
             'agents': resultats,
             'total_transport': total_transport,
-            'total_agents': resultats,
+            'total_agents': len(resultats),
             'performance_par_team': performance_par_team,
             'meilleure_team': meilleure_team,
             'date_debut': date_debut_semaine,
