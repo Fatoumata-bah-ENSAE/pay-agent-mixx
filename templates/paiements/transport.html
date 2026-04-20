@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Transport - MixxPay Agents{% endblock %}
+
+{% block content %}
+<div class="header-actions">
+    <h1 style="color: #0A2D6E;">Paiement Transport</h1>
+    <button class="export-btn" onclick="exportExcel()">📊 Exporter Excel</button>
+</div>
+
+<!-- Filtres -->
+<div class="filters">
+    <div class="filter-group">
+        <label>Semaine :</label>
+        <select id="semaine-select" onchange="changeSemaine()">
+            {% for semaine in semaines %}
+            <option value="{{ semaine.value }}" {% if semaine.value == semaine_selectionnee %}selected{% endif %}>
+                {{ semaine.label }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    {% if onglet_actif == 'openers' %}
+    <div class="filter-group">
+        <label>Statut :</label>
+        <select id="statut-select" onchange="changeStatut()">
+            <option value="tous" {% if statut_filtre == 'tous' %}selected{% endif %}>Tous</option>
+            <option value="atteint" {% if statut_filtre == 'atteint' %}selected{% endif %}>Atteint</option>
+            <option value="non atteint" {% if statut_filtre == 'non atteint' %}selected{% endif %}>Non atteint</option>
+        </select>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Onglets -->
+<div class="tabs">
+    <button class="tab-btn {% if onglet_actif == 'openers' %}active{% endif %}" data-tab="openers" onclick="showTab('openers')">Openers</button>
+    <button class="tab-btn {% if onglet_actif == 'animateurs' %}active{% endif %}" data-tab="animateurs" onclick="showTab('animateurs')">Animateurs</button>
+</div>
+
+<!-- Tab Openers -->
+<div id="tab-openers" class="tab-content {% if onglet_actif == 'openers' %}active{% endif %}">
+    <!-- KPI -->
+    <div class="kpi-container">
+        <div class="kpi-card">
+            <h3>👥 Agents Openers</h3>
+            <div class="value">{{ total_agents|length }}</div>
+        </div>
+        <div class="kpi-card">
+            <h3>💰 Total Transport à Payer</h3>
+            <div class="value">{{ total_transport|floatformat:0 }} FCFA</div>
+        </div>
+    </div>
+    
+    <!-- Team Performance -->
+    {% if meilleure_team %}
+    <div class="team-kpi">
+        <h4>🏆 Team la plus performante</h4>
+        <div class="team-name">{{ meilleure_team.nom }}</div>
+        <div>{{ meilleure_team.creations }} créations - {{ meilleure_team.agents }} agents</div>
+    </div>
+    {% endif %}
+    
+    <!-- Tableau Openers -->
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Team</th>
+                    <th>Objectif</th>
+                    <th>Seuil</th>
+                    <th>Réalisation</th>
+                    <th>Taux (%)</th>
+                    <th>Transport base</th>
+                    <th>Transport net</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agent in agents %}
+                <tr class="clickable-row" onclick="loadDetail('opener', {{ agent.agent.id }}, '{{ date_debut|date:"Y-m-d" }}', '{{ date_fin|date:"Y-m-d" }}', {{ forloop.counter }})">
+                    <td>{{ agent.agent.numero }}</td>
+                    <td>{{ agent.agent.team|default:"-" }}</td>
+                    <td>{{ agent.objectif }}</td>
+                    <td>{{ agent.seuil }}</td>
+                    <td>{{ agent.realisation }}</td>
+                    <td>{{ agent.taux }}%</td>
+                    <td>{{ agent.transport_base|floatformat:0 }} FCFA</td>
+                    <td>{{ agent.transport_net|floatformat:0 }} FCFA</td>
+                    <td>
+                        <span class="badge {% if agent.statut == 'Atteint' %}badge-success{% else %}badge-danger{% endif %}">
+                            {{ agent.statut }}
+                        </span>
+                    </td>
+                </tr>
+                <tr id="detail-{{ forloop.counter }}" class="detail-row">
+                    <td colspan="9" class="detail-cell">
+                        <div id="detail-content-{{ forloop.counter }}"></div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="text-align: center;">Aucun agent opener trouvé</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Tab Animateurs -->
+<div id="tab-animateurs" class="tab-content {% if onglet_actif == 'animateurs' %}active{% endif %}">
+    <!-- KPI -->
+    <div class="kpi-container">
+        <div class="kpi-card">
+            <h3>👥 Agents Animateurs</h3>
+            <div class="value">{{ total_agents }}</div>
+        </div>
+        <div class="kpi-card">
+            <h3>💰 Total Transport à Payer</h3>
+            <div class="value">{{ total_transport|floatformat:0 }} FCFA</div>
+        </div>
+    </div>
+    
+    <!-- Tableau Animateurs -->
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Volume réalisé (FCFA)</th>
+                    <th>Transport (10%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agent in agents %}
+                <tr class="clickable-row" onclick="loadDetail('animateur', {{ agent.agent.id }}, '{{ date_debut|date:"Y-m-d" }}', '{{ date_fin|date:"Y-m-d" }}', 'anim-{{ forloop.counter }}')">
+                    <td>{{ agent.agent.numero }}</td>
+                    <td>{{ agent.volume_realise|floatformat:0 }} FCFA</td>
+                    <td>{{ agent.transport|floatformat:0 }} FCFA</td>
+                </tr>
+                <tr id="detail-anim-{{ forloop.counter }}" class="detail-row">
+                    <td colspan="3" class="detail-cell">
+                        <div id="detail-content-anim-{{ forloop.counter }}"></div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" style="text-align: center;">Aucun agent animateur trouvé</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function changeSemaine() {
+        const semaine = document.getElementById('semaine-select').value;
+        const statut = document.getElementById('statut-select')?.value || 'tous';
+        const onglet = document.querySelector('.tab-btn.active').dataset.tab;
+        window.location.href = `?semaine=${encodeURIComponent(semaine)}&statut=${statut}&onglet=${onglet}`;
+    }
+    
+    function changeStatut() {
+        const semaine = document.getElementById('semaine-select').value;
+        const statut = document.getElementById('statut-select').value;
+        const onglet = document.querySelector('.tab-btn.active').dataset.tab;
+        window.location.href = `?semaine=${encodeURIComponent(semaine)}&statut=${statut}&onglet=${onglet}`;
+    }
+    
+    function exportExcel() {
+        const semaine = document.getElementById('semaine-select').value;
+        const onglet = document.querySelector('.tab-btn.active').dataset.tab;
+        window.location.href = `/export-excel/?semaine=${encodeURIComponent(semaine)}&onglet=${onglet}`;
+    }
+</script>
+{% endblock %}

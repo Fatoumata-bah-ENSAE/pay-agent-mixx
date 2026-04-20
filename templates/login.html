@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Connexion - MixxPay Agents{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; min-height: 80vh;">
+    <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px;">
+        <h2 style="color: #0A2D6E; margin-bottom: 1.5rem; text-align: center;">Connexion MixxPay Agents</h2>
+        
+        {% if form.errors %}
+        <div style="background-color: #FEE2E2; color: #EF4444; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;">
+            Nom d'utilisateur ou mot de passe incorrect.
+        </div>
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            <div style="margin-bottom: 1rem;">
+                <label for="id_username" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Nom d'utilisateur</label>
+                <input type="text" name="username" id="id_username" required style="width: 100%; padding: 0.75rem; border: 1px solid #CBD5E1; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label for="id_password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Mot de passe</label>
+                <input type="password" name="password" id="id_password" required style="width: 100%; padding: 0.75rem; border: 1px solid #CBD5E1; border-radius: 4px;">
+            </div>
+            <button type="submit" style="width: 100%; padding: 0.75rem; background-color: #0A2D6E; color: white; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer;">
+                Se connecter
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1 @@
+web: gunicorn mixxpay_agents.wsgi:application

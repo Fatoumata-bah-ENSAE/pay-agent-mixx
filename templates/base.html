@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MixxPay Agents - {% block title %}Paiements Transport{% endblock %}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #F5F7FA;
+            color: #1E293B;
+        }
+        
+        /* Navbar */
+        .navbar {
+            background-color: #0A2D6E;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .navbar-brand a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .navbar-menu {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        .navbar-menu a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .navbar-menu a:hover, .navbar-menu a.active {
+            background-color: #FFB800;
+            color: #0A2D6E;
+        }
+        
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logout-btn {
+            background-color: #EF4444;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .logout-btn:hover {
+            background-color: #DC2626;
+        }
+        
+        /* Container principal */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        /* Onglets */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #E2E8F0;
+        }
+        
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            font-size: 1rem;
+            cursor: pointer;
+            color: #64748B;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn:hover {
+            color: #0A2D6E;
+        }
+        
+        .tab-btn.active {
+            color: #0A2D6E;
+            border-bottom: 3px solid #FFB800;
+            font-weight: bold;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Filtres */
+        .filters {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            color: #0A2D6E;
+        }
+        
+        select, button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #CBD5E1;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        button {
+            background-color: #0A2D6E;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        
+        button:hover {
+            background-color: #1E3A8A;
+        }
+        
+        /* Cartes KPI */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .kpi-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid #FFB800;
+        }
+        
+        .kpi-card h3 {
+            font-size: 0.9rem;
+            color: #64748B;
+            margin-bottom: 0.5rem;
+        }
+        
+        .kpi-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0A2D6E;
+        }
+        
+        .kpi-card .sub {
+            font-size: 0.8rem;
+            color: #64748B;
+            margin-top: 0.5rem;
+        }
+        
+        /* Tableaux */
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #E2E8F0;
+        }
+        
+        th {
+            background-color: #F8FAFC;
+            font-weight: 600;
+            color: #0A2D6E;
+        }
+        
+        tr:hover {
+            background-color: #F8FAFC;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background-color: #22C55E;
+            color: white;
+        }
+        
+        .badge-danger {
+            background-color: #EF4444;
+            color: white;
+        }
+        
+        .clickable-row {
+            cursor: pointer;
+        }
+        
+        /* Détail accordéon */
+        .detail-row {
+            display: none;
+            background-color: #F8FAFC;
+        }
+        
+        .detail-row.active {
+            display: table-row;
+        }
+        
+        .detail-cell {
+            padding: 1.5rem;
+        }
+        
+        .detail-table {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .detail-table th, .detail-table td {
+            padding: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .detail-table th {
+            background-color: #E2E8F0;
+        }
+        
+        .total-row {
+            font-weight: bold;
+            background-color: #FFB80020;
+        }
+        
+        /* Bouton export */
+        .export-btn {
+            background-color: #FFB800;
+            color: #0A2D6E;
+            margin-left: auto;
+        }
+        
+        .export-btn:hover {
+            background-color: #E6A700;
+        }
+        
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        /* Team KPI */
+        .team-kpi {
+            background: linear-gradient(135deg, #0A2D6E 0%, #1E3A8A 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .team-kpi h4 {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .team-kpi .team-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .navbar-menu {
+                gap: 0.5rem;
+            }
+            
+            .navbar-menu a {
+                padding: 0.5rem;
+                font-size: 0.9rem;
+            }
+            
+            th, td {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="{% url 'paiements:transport' %}">MixxPay Agents</a>
+        </div>
+        <ul class="navbar-menu">
+            <li><a href="{% url 'paiements:transport' %}" class="{% if request.resolver_match.url_name == 'transport' %}active{% endif %}">Paiement > Transport</a></li>
+            <li><a href="{% url 'paiements:salaire' %}" class="{% if request.resolver_match.url_name == 'salaire' %}active{% endif %}">Paiement > Salaire</a></li>
+            <li><a href="{% url 'paiements:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Tableau de bord</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span>{{ user.username }}</span>
+            <a href="{% url 'logout' %}" class="logout-btn">Déconnexion</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script>
+        // Script pour les onglets
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('tab-' + tabName).classList.add('active');
+            document.querySelector(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
+            
+            // Mettre à jour l'URL sans recharger
+            const url = new URL(window.location.href);
+            url.searchParams.set('onglet', tabName);
+            window.history.pushState({}, '', url);
+        }
+        
+        // Script pour l'accordéon
+        function toggleDetail(rowId) {
+            const detailRow = document.getElementById('detail-' + rowId);
+            detailRow.classList.toggle('active');
+        }
+        
+        // Charger le détail via AJAX
+        async function loadDetail(type, agentId, dateDebut, dateFin, rowId) {
+            const detailDiv = document.getElementById('detail-content-' + rowId);
+            if (detailDiv.innerHTML.trim() !== '') {
+                toggleDetail(rowId);
+                return;
+            }
+            
+            detailDiv.innerHTML = '<div style="text-align:center; padding:2rem;">Chargement...</div>';
+            toggleDetail(rowId);
+            
+            try {
+                let url;
+                if (type === 'opener') {
+                    url = `/api/detail-opener/?agent_id=${agentId}&date_debut=${dateDebut}&date_fin=${dateFin}`;
+                } else {
+                    url = `/api/detail-animateur/?agent_id=${agentId}&date_debut=${dateDebut}&date_fin=${dateFin}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = '<table class="detail-table">';
+                    html += '<thead><tr><th>Jour</th><th>Date</th><th>Réalisation</th>';
+                    if (type === 'animateur') html += '<th>Volume (FCFA)</th><th>Transport (FCFA)</th>';
+                    html += '</tr></thead><tbody>';
+                    
+                    for (const jour of data.jours) {
+                        html += '<tr>';
+                        html += `<td>${jour.jour_semaine}</td>`;
+                        html += `<td>${jour.date}</td>`;
+                        if (type === 'opener') {
+                            html += `<td>${jour.realisation}</td>`;
+                        } else {
+                            html += `<td>${jour.realisation || 0}</td>`;
+                            html += `<td>${(jour.volume || 0).toLocaleString()} FCFA</td>`;
+                            html += `<td>${(jour.transport || 0).toLocaleString()} FCFA</td>`;
+                        }
+                        html += '</tr>';
+                    }
+                    
+                    html += `<tr class="total-row"><td colspan="2"><strong>TOTAL</strong></td>`;
+                    if (type === 'opener') {
+                        html += `<td><strong>${data.total_realisation}</strong> (${data.taux}%)</td>`;
+                        html += `<td><strong>${data.transport.toLocaleString()} FCFA</strong></td>`;
+                    } else {
+                        html += `<td><strong>${data.total_realisation || 0}</strong></td>`;
+                        html += `<td><strong>${(data.total_volume || 0).toLocaleString()} FCFA</strong></td>`;
+                        html += `<td><strong>${(data.total_transport || 0).toLocaleString()} FCFA</strong></td>`;
+                    }
+                    html += '</tr>';
+                    html += '</tbody></table>';
+                    
+                    detailDiv.innerHTML = html;
+                } else {
+                    detailDiv.innerHTML = `<div style="color:red; padding:1rem;">Erreur: ${data.error}</div>`;
+                }
+            } catch (error) {
+                detailDiv.innerHTML = `<div style="color:red; padding:1rem;">Erreur de chargement: ${error.message}</div>`;
+            }
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
