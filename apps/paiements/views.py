@@ -16,7 +16,6 @@ def transport_view(request):
     """
     # Récupérer la semaine sélectionnée ou prendre la semaine en cours
     semaine_str = request.GET.get('semaine')
-    statut_filtre = request.GET.get('statut', 'tous')
     onglet = request.GET.get('onglet', 'openers')
     
     # Liste des semaines disponibles
@@ -53,20 +52,13 @@ def transport_view(request):
         'semaine_selectionnee': f"{date_debut.isoformat()}|{date_fin.isoformat()}",
         'date_debut': date_debut,
         'date_fin': date_fin,
-        'statut_filtre': statut_filtre,
     }
-    
+
     # Charger les données selon l'onglet
     if onglet == 'openers':
         data = TransportService.calcul_openers_semaine(date_debut, date_fin)
-        
-        # Appliquer le filtre statut
-        agents_filtres = data['agents']
-        if statut_filtre != 'tous':
-            agents_filtres = [a for a in data['agents'] if a['statut'].lower() == statut_filtre.lower()]
-        
         context.update({
-            'agents': agents_filtres,
+            'agents': data['agents'],
             'total_transport': data['total_transport'],
             'total_agents': data['total_agents'],
             'performance_par_team': data.get('performance_par_team', {}),

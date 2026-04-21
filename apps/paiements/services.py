@@ -8,6 +8,8 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from ..agents.models import Agent, CreationMarchand, SuiviMarchand
 
+JOURS_FR = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+
 
 class TransportService:
     """
@@ -170,7 +172,7 @@ class TransportService:
             
             jours.append({
                 'date': current_date,
-                'jour_semaine': current_date.strftime('%A'),
+                'jour_semaine': JOURS_FR[current_date.weekday()],
                 'realisation': creations_jour,
             })
             current_date += timedelta(days=1)
@@ -248,7 +250,7 @@ class TransportService:
             
             jours.append({
                 'date': current_date,
-                'jour_semaine': current_date.strftime('%A'),
+                'jour_semaine': JOURS_FR[current_date.weekday()],
                 'volume': volume_jour,
                 'transport': transport_jour,
             })

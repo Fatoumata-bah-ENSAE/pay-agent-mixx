@@ -20,17 +20,6 @@
             {% endfor %}
         </select>
     </div>
-    
-    {% if onglet_actif == 'openers' %}
-    <div class="filter-group">
-        <label>Statut :</label>
-        <select id="statut-select" onchange="changeStatut()">
-            <option value="tous" {% if statut_filtre == 'tous' %}selected{% endif %}>Tous</option>
-            <option value="atteint" {% if statut_filtre == 'atteint' %}selected{% endif %}>Atteint</option>
-            <option value="non atteint" {% if statut_filtre == 'non atteint' %}selected{% endif %}>Non atteint</option>
-        </select>
-    </div>
-    {% endif %}
 </div>
 
 <!-- Onglets -->
@@ -159,18 +148,10 @@
 <script>
     function changeSemaine() {
         const semaine = document.getElementById('semaine-select').value;
-        const statut = document.getElementById('statut-select')?.value || 'tous';
         const onglet = document.querySelector('.tab-btn.active').dataset.tab;
-        window.location.href = `?semaine=${encodeURIComponent(semaine)}&statut=${statut}&onglet=${onglet}`;
+        window.location.href = `?semaine=${encodeURIComponent(semaine)}&onglet=${onglet}`;
     }
-    
-    function changeStatut() {
-        const semaine = document.getElementById('semaine-select').value;
-        const statut = document.getElementById('statut-select').value;
-        const onglet = document.querySelector('.tab-btn.active').dataset.tab;
-        window.location.href = `?semaine=${encodeURIComponent(semaine)}&statut=${statut}&onglet=${onglet}`;
-    }
-    
+
     function exportExcel() {
         const semaine = document.getElementById('semaine-select').value;
         const onglet = document.querySelector('.tab-btn.active').dataset.tab;

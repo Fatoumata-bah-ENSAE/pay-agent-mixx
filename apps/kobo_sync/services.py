@@ -31,26 +31,28 @@ class KoboService:
         data = response.json()
         
         mappings = {}
-        
-        # Parcourir content.survey pour trouver les champs avec select_from_list_name
+
+        # Construire d'abord le dictionnaire list_name -> {code: label}
+        list_mappings = {}
+        for choice in data.get('content', {}).get('choices', []):
+            list_name = choice.get('list_name')
+            code = choice.get('name')
+            label = choice.get('label')
+            if label and isinstance(label, list):
+                label = next((l for l in label if l), code)
+            if list_name and code:
+                if list_name not in list_mappings:
+                    list_mappings[list_name] = {}
+                list_mappings[list_name][code] = label
+
+        # Associer chaque champ select à ses choix via son list_name (utiliser name, pas $kuid)
         for item in data.get('content', {}).get('survey', []):
             if 'select_from_list_name' in item:
+                field_name = item.get('name')
                 list_name = item['select_from_list_name']
-                field_name = item['$kuid'] if '$kuid' in item else item.get('name')
-                
-                # Chercher les choix correspondants
-                for choice in data.get('content', {}).get('choices', []):
-                    if choice.get('list_name') == list_name:
-                        code = choice.get('name')
-                        label = choice.get('label')
-                        if label and isinstance(label, list):
-                            # Prendre le premier élément non-None
-                            label = next((l for l in label if l), code)
-                        
-                        if field_name not in mappings:
-                            mappings[field_name] = {}
-                        mappings[field_name][code] = label
-        
+                if field_name and list_name in list_mappings:
+                    mappings[field_name] = list_mappings[list_name]
+
         return mappings
     
     def convert_date(self, date_str):
