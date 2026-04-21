@@ -4,23 +4,26 @@ Récupération, mapping et insertion des données
 """
 
 import requests
-from datetime import datetime, timezone as utc
+from datetime import datetime, timezone as dt_tz
+from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.utils import timezone
 from ..agents.models import Agent, CreationMarchand, SuiviMarchand
+
+UTC = dt_tz.utc
 
 
 class KoboService:
     """
     Service d'intégration avec l'API KoboToolbox
     """
-    
+
     def __init__(self):
         self.base_url = settings.KOBO_BASE_URL
         self.headers = {
             'Authorization': f'Token {settings.KOBO_TOKEN}'
         }
-    
+
     def get_mappings(self, uid):
         """
         Récupère les mappings codes -> labels depuis l'API Kobo
@@ -29,7 +32,7 @@ class KoboService:
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
         data = response.json()
-        
+
         mappings = {}
 
         # Construire d'abord le dictionnaire list_name -> {code: label}
@@ -45,7 +48,7 @@ class KoboService:
                     list_mappings[list_name] = {}
                 list_mappings[list_name][code] = label
 
-        # Associer chaque champ select à ses choix via son list_name (utiliser name, pas $kuid)
+        # Associer chaque champ select à ses choix via son list_name
         for item in data.get('content', {}).get('survey', []):
             if 'select_from_list_name' in item:
                 field_name = item.get('name')
@@ -54,136 +57,168 @@ class KoboService:
                     mappings[field_name] = list_mappings[list_name]
 
         return mappings
-    
+
     def convert_date(self, date_str):
         """
         Convertit une date ISO avec timezone en datetime UTC
         """
         if not date_str:
             return None
-        
-        # Remplacer Z par +00:00 si nécessaire
+
         if date_str.endswith('Z'):
             date_str = date_str.replace('Z', '+00:00')
-        
-        # Parser la date
+
         dt = datetime.fromisoformat(date_str)
-        
-        # Convertir en UTC
+
         if dt.tzinfo:
-            dt = dt.astimezone(utc.UTC)
+            dt = dt.astimezone(UTC)
         else:
-            dt = dt.replace(tzinfo=utc.UTC)
-        
+            dt = dt.replace(tzinfo=UTC)
+
         return dt
-    
+
+    def _upsert_opener(self, numero, nom, equipe, team):
+        """
+        Crée ou met à jour un agent opener sans écraser est_animateur
+        """
+        agent, created = Agent.objects.get_or_create(
+            numero=numero,
+            defaults={
+                'nom': nom,
+                'est_opener': True,
+                'est_animateur': False,
+                'equipe': equipe,
+                'team': team,
+            }
+        )
+        if not created:
+            changed = False
+            if not agent.est_opener:
+                agent.est_opener = True
+                changed = True
+            if nom and not agent.nom:
+                agent.nom = nom
+                changed = True
+            if equipe and not agent.equipe:
+                agent.equipe = equipe
+                changed = True
+            if team and not agent.team:
+                agent.team = team
+                changed = True
+            if changed:
+                agent.save()
+        return agent, created
+
     def sync_creations(self):
         """
         Synchronise les soumissions du formulaire Création Marchand
         Filtre les données à partir du 2026-04-13
         """
         print("Début synchronisation des créations marchand...")
-        
-        # Récupérer les mappings
+
         mappings = self.get_mappings(settings.KOBO_UID_CREATION)
-        
-        # Récupérer les données paginées
+
         url = f"{self.base_url}/api/v2/assets/{settings.KOBO_UID_CREATION}/data/?format=json"
         all_data = []
-        
+
         while url:
             response = requests.get(url, headers=self.headers)
             response.raise_for_status()
             data = response.json()
-            
             results = data.get('results', [])
             all_data.extend(results)
-            
             url = data.get('next')
             print(f"  Récupéré {len(results)} soumissions...")
-        
+
         print(f"Total soumissions récupérées: {len(all_data)}")
-        
-        # Filtrer et traiter les données
-        date_min = datetime(2026, 4, 13, 0, 0, 0, tzinfo=utc.UTC)
-        creations_a_inserer = []
-        agents_a_mettre_a_jour = {}
-        
-        # Trier par date pour la déduplication (on garde la première)
+
+        date_min = datetime(2026, 4, 13, 0, 0, 0, tzinfo=UTC)
+
+        # Trier par date pour garder la première soumission de chaque marchand
         all_data.sort(key=lambda x: x.get('start', ''))
-        
-        # Pour la déduplication des marchands
+
         marchands_vus = set()
-        
+        agents_data = {}
+        creations_a_inserer = []
+
         for submission in all_data:
-            # Vérifier la date
             start_date = self.convert_date(submission.get('start'))
             if not start_date or start_date < date_min:
                 continue
-            
-            # Extraire le numéro opener
-            # Ancien format: champ 'numero_opener'
-            # Nouveau format: 'identification_agent/numero_opener'
-            numero_opener = submission.get('numero_opener') or submission.get('identification_agent/numero_opener')
+
+            numero_opener = (
+                submission.get('identification_agent/numero_opener')
+                or submission.get('numero_opener')
+            )
             if not numero_opener:
                 continue
-            
-            # Extraire le numéro marchand
-            numero_marchand = submission.get('numero_marchand') or submission.get('infos_marchand/numero_marchand')
+
+            numero_marchand = (
+                submission.get('infos_marchand/numero_marchand')
+                or submission.get('numero_marchand')
+            )
             if not numero_marchand:
                 continue
-            
+
             # Déduplication par numero_marchand
             if numero_marchand in marchands_vus:
                 continue
             marchands_vus.add(numero_marchand)
-            
-            # Extraire l'équipe
-            # Ancien format: equipes (1=Mixx, 2=Top Image)
-            # Nouveau format: identification_agent/agent_equipe (valeur directe)
-            ancienne_equipe = submission.get('equipes')
-            nouvelle_equipe = submission.get('identification_agent/agent_equipe')
-            
+
+            # Équipe : nouveau format direct, ancien format mappé
+            nouvelle_equipe = submission.get('identification_agent/agent_equipe', '')
+            ancienne_equipe = submission.get('equipes', '')
             if nouvelle_equipe:
-                equipe = nouvelle_equipe  # Déjà "Mixx"
+                equipe = nouvelle_equipe
             elif ancienne_equipe:
-                equipe = 'Mixx' if ancienne_equipe == '1' else 'Top Image'
+                equipe = 'Mixx' if str(ancienne_equipe) == '1' else 'Top Image'
             else:
                 equipe = ''
-            
-            # Extraire la team (uniquement nouveau format)
+
             team = submission.get('identification_agent/agent_team', '')
-            
-            # Extraire les autres champs avec mapping
-            type_structure_code = submission.get('type_structure') or submission.get('infos_marchand/type_structure')
-            type_structure = mappings.get('type_structure', {}).get(type_structure_code, '') if type_structure_code else ''
-            
-            profil_marchand_code = submission.get('profil_marchand') or submission.get('infos_marchand/profil_marchand')
-            profil_marchand = mappings.get('profil_marchand', {}).get(profil_marchand_code, '') if profil_marchand_code else ''
-            
-            nom_opener = submission.get('nom_opener') or submission.get('identification_agent/nom_opener', '')
-            nom_structure = submission.get('nom_structure') or submission.get('infos_marchand/nom_structure', '')
-            region = submission.get('filtre_regions') or submission.get('contact_localisation/filtre_regions', '')
-            departement = submission.get('filtre_departs') or submission.get('contact_localisation/filtre_departs', '')
-            
-            # Créer ou mettre à jour l'agent
-            if numero_opener not in agents_a_mettre_a_jour:
-                agents_a_mettre_a_jour[numero_opener] = {
-                    'numero': numero_opener,
-                    'nom': nom_opener,
-                    'est_opener': True,
-                    'est_animateur': False,
-                    'equipe': equipe,
-                    'team': team,
-                }
+            nom_opener = (
+                submission.get('identification_agent/nom_opener')
+                or submission.get('nom_opener', '')
+                or ''
+            )
+
+            type_structure_code = (
+                submission.get('infos_marchand/type_structure')
+                or submission.get('type_structure', '')
+            )
+            type_structure = mappings.get('type_structure', {}).get(str(type_structure_code), '') if type_structure_code else ''
+
+            profil_code = (
+                submission.get('infos_marchand/profil_marchand')
+                or submission.get('profil_marchand', '')
+            )
+            profil_marchand = mappings.get('profil_marchand', {}).get(str(profil_code), '') if profil_code else ''
+
+            nom_structure = (
+                submission.get('infos_marchand/nom_structure')
+                or submission.get('nom_structure', '')
+                or ''
+            )
+            region = (
+                submission.get('contact_localisation/filtre_regions')
+                or submission.get('filtre_regions', '')
+                or ''
+            )
+            departement = (
+                submission.get('contact_localisation/filtre_departs')
+                or submission.get('filtre_departs', '')
+                or ''
+            )
+
+            # Mémoriser les données agent (on garde la meilleure valeur trouvée)
+            if numero_opener not in agents_data:
+                agents_data[numero_opener] = {'nom': nom_opener, 'equipe': equipe, 'team': team}
             else:
-                # Mettre à jour l'équipe si elle n'était pas définie
-                if equipe and not agents_a_mettre_a_jour[numero_opener]['equipe']:
-                    agents_a_mettre_a_jour[numero_opener]['equipe'] = equipe
-                if team and not agents_a_mettre_a_jour[numero_opener]['team']:
-                    agents_a_mettre_a_jour[numero_opener]['team'] = team
-            
-            # Préparer la création marchand
+                if equipe and not agents_data[numero_opener]['equipe']:
+                    agents_data[numero_opener]['equipe'] = equipe
+                if team and not agents_data[numero_opener]['team']:
+                    agents_data[numero_opener]['team'] = team
+
             creations_a_inserer.append({
                 'kobo_id': str(submission.get('_id', '')),
                 'numero_marchand': numero_marchand,
@@ -198,24 +233,18 @@ class KoboService:
                 'date_soumission': start_date,
                 'date_activite': start_date.date(),
             })
-        
-        # Mettre à jour les agents
-        for numero, agent_data in agents_a_mettre_a_jour.items():
-            agent, created = Agent.objects.update_or_create(
-                numero=numero,
-                defaults=agent_data
-            )
-            if created:
-                print(f"  Créé agent opener: {numero}")
-            else:
-                print(f"  Mis à jour agent: {numero}")
-        
-        # Insérer les créations (déjà dédoublonnées)
+
+        # Créer/mettre à jour les agents sans écraser est_animateur
+        for numero, info in agents_data.items():
+            agent, created = self._upsert_opener(numero, info['nom'], info['equipe'], info['team'])
+            print(f"  {'Créé' if created else 'Mis à jour'} agent opener: {numero}")
+
+        # Insérer les créations (idempotent via numero_marchand)
         creations_count = 0
         for creation in creations_a_inserer:
             try:
                 opener = Agent.objects.get(numero=creation['opener_numero'])
-                CreationMarchand.objects.get_or_create(
+                _, created = CreationMarchand.objects.get_or_create(
                     numero_marchand=creation['numero_marchand'],
                     defaults={
                         'kobo_id': creation['kobo_id'],
@@ -231,81 +260,73 @@ class KoboService:
                         'date_activite': creation['date_activite'],
                     }
                 )
-                creations_count += 1
+                if created:
+                    creations_count += 1
             except Agent.DoesNotExist:
                 print(f"  Erreur: Agent {creation['opener_numero']} non trouvé")
-        
+
         print(f"Créations insérées: {creations_count}")
         return creations_count
-    
+
     def sync_suivis(self):
         """
         Synchronise les soumissions du formulaire Suivi Marchand
         Filtre les données à partir du 2026-04-14
         """
         print("Début synchronisation des suivis marchand...")
-        
-        # Récupérer les mappings
+
         mappings = self.get_mappings(settings.KOBO_UID_SUIVI)
-        
-        # Récupérer les données paginées
+
         url = f"{self.base_url}/api/v2/assets/{settings.KOBO_UID_SUIVI}/data/?format=json"
         all_data = []
-        
+
         while url:
             response = requests.get(url, headers=self.headers)
             response.raise_for_status()
             data = response.json()
-            
             results = data.get('results', [])
             all_data.extend(results)
-            
             url = data.get('next')
             print(f"  Récupéré {len(results)} soumissions...")
-        
+
         print(f"Total soumissions récupérées: {len(all_data)}")
-        
-        # Filtrer et traiter les données
-        date_min = datetime(2026, 4, 14, 0, 0, 0, tzinfo=utc.UTC)
+
+        date_min = datetime(2026, 4, 14, 0, 0, 0, tzinfo=UTC)
         suivis_a_inserer = []
-        agents_a_mettre_a_jour = {}
-        
+        agents_vus = set()
+
         for submission in all_data:
-            # Vérifier la date
             start_date = self.convert_date(submission.get('start'))
             if not start_date or start_date < date_min:
                 continue
-            
-            # Extraire le numéro animateur (même champ 'numero_opener')
+
             numero_animateur = submission.get('numero_opener')
             if not numero_animateur:
                 continue
-            
-            # Extraire les données de la section
+
             numero_marchand = submission.get('section_marchand/numero_marchand')
             numero_client = submission.get('section_clients/numero_clients')
-            montant = submission.get('section_clients/montant')
-            application_code = submission.get('section_clients/application_paiements')
-            profil_code = submission.get('section_marchand/profil_marchand')
-            type_code = submission.get('section_marchand/type_structure')
-            
-            if not numero_marchand or not numero_client or not montant:
+            montant_raw = submission.get('section_clients/montant')
+
+            if not numero_marchand or not numero_client or montant_raw is None:
                 continue
-            
-            # Mapper les codes
-            application = mappings.get('application_paiements', {}).get(application_code, '')
-            profil = mappings.get('profil_marchand', {}).get(profil_code, '')
-            type_structure = mappings.get('type_structure', {}).get(type_code, '')
-            
-            # Créer ou mettre à jour l'agent (animateur)
-            if numero_animateur not in agents_a_mettre_a_jour:
-                agents_a_mettre_a_jour[numero_animateur] = {
-                    'numero': numero_animateur,
-                    'est_opener': False,
-                    'est_animateur': True,
-                }
-            
-            # Préparer le suivi
+
+            try:
+                montant = Decimal(str(montant_raw).replace(' ', '').replace(',', '.'))
+            except InvalidOperation:
+                print(f"  Montant invalide ignoré: {montant_raw}")
+                continue
+
+            application_code = submission.get('section_clients/application_paiements', '')
+            profil_code = submission.get('section_marchand/profil_marchand', '')
+            type_code = submission.get('section_marchand/type_structure', '')
+
+            application = mappings.get('application_paiements', {}).get(str(application_code), '') if application_code else ''
+            profil = mappings.get('profil_marchand', {}).get(str(profil_code), '') if profil_code else ''
+            type_structure = mappings.get('type_structure', {}).get(str(type_code), '') if type_code else ''
+
+            agents_vus.add(numero_animateur)
+
             suivis_a_inserer.append({
                 'kobo_id': str(submission.get('_id', '')),
                 'animateur_numero': numero_animateur,
@@ -318,20 +339,19 @@ class KoboService:
                 'date_soumission': start_date,
                 'date_activite': start_date.date(),
             })
-        
-        # Mettre à jour les agents sans écraser est_opener si déjà True
-        for numero, agent_data in agents_a_mettre_a_jour.items():
+
+        # Créer les agents animateurs sans écraser est_opener
+        for numero in agents_vus:
             agent, created = Agent.objects.get_or_create(
                 numero=numero,
                 defaults={'est_animateur': True, 'est_opener': False}
             )
-            if created:
-                print(f"  Créé agent animateur: {numero}")
-            elif not agent.est_animateur:
+            if not created and not agent.est_animateur:
                 agent.est_animateur = True
                 agent.save()
-                print(f"  Mis à jour agent (ajout rôle animateur): {numero}")
-        
+            if created:
+                print(f"  Créé agent animateur: {numero}")
+
         # Insérer les suivis (idempotent via kobo_id)
         suivis_count = 0
         for suivi in suivis_a_inserer:
@@ -355,10 +375,10 @@ class KoboService:
                     suivis_count += 1
             except Agent.DoesNotExist:
                 print(f"  Erreur: Agent animateur {suivi['animateur_numero']} non trouvé")
-        
+
         print(f"Suivis insérés: {suivis_count}")
         return suivis_count
-    
+
     def sync_all(self):
         """
         Synchronise tous les formulaires
