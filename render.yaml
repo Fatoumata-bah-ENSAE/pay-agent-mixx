@@ -9,7 +9,7 @@ services:
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       python manage.py migrate
-    startCommand: gunicorn mixxpay_agents.wsgi:application
+    startCommand: gunicorn mixxpay_agents.wsgi:application --timeout 120 --workers 1
     envVars:
       - key: DATABASE_URL
         fromDatabase:
