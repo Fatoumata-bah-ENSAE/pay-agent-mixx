@@ -4,7 +4,7 @@ Récupération, mapping et insertion des données
 """
 
 import requests
-from datetime import datetime
+from datetime import datetime, timezone as utc
 from django.conf import settings
 from django.utils import timezone
 from ..agents.models import Agent, CreationMarchand, SuiviMarchand
@@ -71,9 +71,9 @@ class KoboService:
         
         # Convertir en UTC
         if dt.tzinfo:
-            dt = dt.astimezone(timezone.utc)
+            dt = dt.astimezone(utc.UTC)
         else:
-            dt = timezone.make_aware(dt, timezone.utc)
+            dt = dt.replace(tzinfo=utc.UTC)
         
         return dt
     
@@ -105,7 +105,7 @@ class KoboService:
         print(f"Total soumissions récupérées: {len(all_data)}")
         
         # Filtrer et traiter les données
-        date_min = datetime(2026, 4, 13, 0, 0, 0, tzinfo=timezone.utc)
+        date_min = datetime(2026, 4, 13, 0, 0, 0, tzinfo=utc.UTC)
         creations_a_inserer = []
         agents_a_mettre_a_jour = {}
         
@@ -266,7 +266,7 @@ class KoboService:
         print(f"Total soumissions récupérées: {len(all_data)}")
         
         # Filtrer et traiter les données
-        date_min = datetime(2026, 4, 14, 0, 0, 0, tzinfo=timezone.utc)
+        date_min = datetime(2026, 4, 14, 0, 0, 0, tzinfo=utc.UTC)
         suivis_a_inserer = []
         agents_a_mettre_a_jour = {}
         
