@@ -387,44 +387,33 @@
             banner.style.color = '#854D0E';
             banner.textContent = 'Connexion à KoboToolbox... Patientez, cela peut prendre jusqu\'à 2 minutes.';
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 120000);
-
             fetch("{% url 'sync_kobo' %}", {
                 method: 'POST',
                 headers: {'X-CSRFToken': '{{ csrf_token }}'},
-                signal: controller.signal,
             })
-            .then(r => {
-                clearTimeout(timeoutId);
-                if (!r.ok && r.headers.get('content-type') && !r.headers.get('content-type').includes('json')) {
-                    throw new Error(`Erreur serveur (${r.status}). Vérifiez les variables KOBO sur Render.`);
-                }
-                return r.json();
-            })
+            .then(r => r.json().catch(() => { throw new Error('Réponse invalide du serveur (vérifiez les logs Render).'); }))
             .then(data => {
                 banner.style.display = 'block';
                 if (data.success) {
                     banner.style.backgroundColor = '#D1FAE5';
                     banner.style.color = '#065F46';
                     banner.textContent = data.message;
-                    setTimeout(() => location.reload(), 1500);
+                    if (!data.async) {
+                        setTimeout(() => location.reload(), 1500);
+                    }
                 } else {
                     banner.style.backgroundColor = '#FEE2E2';
                     banner.style.color = '#991B1B';
                     banner.textContent = 'Erreur : ' + data.message;
-                    btn.disabled = false;
-                    btn.textContent = 'Synchroniser';
                 }
+                btn.disabled = false;
+                btn.textContent = 'Synchroniser';
             })
             .catch(err => {
-                clearTimeout(timeoutId);
                 banner.style.display = 'block';
                 banner.style.backgroundColor = '#FEE2E2';
                 banner.style.color = '#991B1B';
-                banner.textContent = err.name === 'AbortError'
-                    ? 'Délai dépassé. La sync tourne en arrière-plan, rechargez dans 1 minute.'
-                    : 'Erreur : ' + err.message;
+                banner.textContent = 'Erreur : ' + err.message;
                 btn.disabled = false;
                 btn.textContent = 'Synchroniser';
             });

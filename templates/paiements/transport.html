@@ -2,10 +2,43 @@
 
 {% block title %}Transport - MixxPay Agents{% endblock %}
 
+{% block extra_css %}
+<style>
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: white;
+    border-top: 1px solid #E2E8F0;
+}
+.pagination-bar button {
+    background-color: #0A2D6E;
+    color: white;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.pagination-bar button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.pagination-bar .page-info {
+    font-size: 0.9rem;
+    color: #64748B;
+    min-width: 120px;
+    text-align: center;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="header-actions">
     <h1 style="color: #0A2D6E;">Paiement Transport</h1>
-    <button class="export-btn" onclick="exportExcel()">📊 Exporter Excel</button>
+    <button class="export-btn" onclick="exportExcel()">Exporter Excel</button>
 </div>
 
 <!-- Filtres -->
@@ -28,35 +61,33 @@
     <button class="tab-btn {% if onglet_actif == 'animateurs' %}active{% endif %}" data-tab="animateurs" onclick="showTab('animateurs')">Animateurs</button>
 </div>
 
-<!-- Tab Openers -->
+<!-- ===== TAB OPENERS ===== -->
 <div id="tab-openers" class="tab-content {% if onglet_actif == 'openers' %}active{% endif %}">
-    <!-- KPI -->
     <div class="kpi-container">
         <div class="kpi-card">
-            <h3>👥 Agents Openers</h3>
-            <div class="value">{{ total_agents }}</div>
+            <h3>Agents Openers</h3>
+            <div class="value">{{ openers_total_agents }}</div>
         </div>
         <div class="kpi-card">
-            <h3>💰 Total Transport à Payer</h3>
-            <div class="value">{{ total_transport|floatformat:0 }} FCFA</div>
+            <h3>Total Transport à Payer</h3>
+            <div class="value">{{ openers_total_transport|floatformat:0 }} FCFA</div>
         </div>
     </div>
-    
-    <!-- Team Performance -->
-    {% if meilleure_team %}
+
+    {% if openers_meilleure_team %}
     <div class="team-kpi">
-        <h4>🏆 Team la plus performante</h4>
-        <div class="team-name">{{ meilleure_team.nom }}</div>
-        <div>{{ meilleure_team.creations }} créations - {{ meilleure_team.agents }} agents</div>
+        <h4>Team la plus performante</h4>
+        <div class="team-name">{{ openers_meilleure_team.nom }}</div>
+        <div>{{ openers_meilleure_team.creations }} créations - {{ openers_meilleure_team.agents }} agents</div>
     </div>
     {% endif %}
-    
-    <!-- Tableau Openers -->
+
     <div class="table-container">
-        <table>
+        <table id="table-openers">
             <thead>
                 <tr>
                     <th>Agent</th>
+                    <th>Equipe</th>
                     <th>Team</th>
                     <th>Objectif</th>
                     <th>Seuil</th>
@@ -68,67 +99,69 @@
                 </tr>
             </thead>
             <tbody>
-                {% for agent in agents %}
-                <tr class="clickable-row" onclick="loadDetail('opener', {{ agent.agent.id }}, '{{ date_debut|date:"Y-m-d" }}', '{{ date_fin|date:"Y-m-d" }}', {{ forloop.counter }})">
-                    <td>{{ agent.agent.numero }}</td>
-                    <td>{{ agent.agent.team|default:"-" }}</td>
-                    <td>{{ agent.objectif }}</td>
-                    <td>{{ agent.seuil }}</td>
-                    <td>{{ agent.realisation }}</td>
-                    <td>{{ agent.taux }}%</td>
-                    <td>{{ agent.transport_base|floatformat:0 }} FCFA</td>
-                    <td>{{ agent.transport_net|floatformat:0 }} FCFA</td>
+                {% for ag in openers %}
+                <tr class="clickable-row agent-row" onclick="loadDetailOpener({{ ag.agent.id }}, '{{ date_debut|date:"Y-m-d" }}', '{{ date_fin|date:"Y-m-d" }}', {{ forloop.counter }})">
+                    <td>{{ ag.agent.numero }}</td>
+                    <td>{{ ag.agent.equipe|default:"-" }}</td>
+                    <td>{{ ag.agent.team|default:"-" }}</td>
+                    <td>{{ ag.objectif }}</td>
+                    <td>{{ ag.seuil }}</td>
+                    <td>{{ ag.realisation }}</td>
+                    <td>{{ ag.taux }}%</td>
+                    <td>{{ ag.transport_base|floatformat:0 }} FCFA</td>
+                    <td>{{ ag.transport_net|floatformat:0 }} FCFA</td>
                     <td>
-                        <span class="badge {% if agent.statut == 'Atteint' %}badge-success{% else %}badge-danger{% endif %}">
-                            {{ agent.statut }}
+                        <span class="badge {% if ag.statut == 'Atteint' %}badge-success{% else %}badge-danger{% endif %}">
+                            {{ ag.statut }}
                         </span>
                     </td>
                 </tr>
-                <tr id="detail-{{ forloop.counter }}" class="detail-row">
-                    <td colspan="9" class="detail-cell">
-                        <div id="detail-content-{{ forloop.counter }}"></div>
+                <tr id="detail-op-{{ forloop.counter }}" class="detail-row">
+                    <td colspan="10" class="detail-cell">
+                        <div id="detail-content-op-{{ forloop.counter }}"></div>
                     </td>
                 </tr>
                 {% empty %}
-                <tr>
-                    <td colspan="9" style="text-align: center;">Aucun agent opener trouvé</td>
-                </tr>
+                <tr><td colspan="10" style="text-align:center;">Aucun agent opener trouvé</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        <div class="pagination-bar" id="pagination-openers">
+            <button id="prev-openers" onclick="changePage('openers',-1)">Précédent</button>
+            <span class="page-info" id="page-info-openers"></span>
+            <button id="next-openers" onclick="changePage('openers',1)">Suivant</button>
+        </div>
     </div>
 </div>
 
-<!-- Tab Animateurs -->
+<!-- ===== TAB ANIMATEURS ===== -->
 <div id="tab-animateurs" class="tab-content {% if onglet_actif == 'animateurs' %}active{% endif %}">
-    <!-- KPI -->
     <div class="kpi-container">
         <div class="kpi-card">
-            <h3>👥 Agents Animateurs</h3>
-            <div class="value">{{ total_agents }}</div>
+            <h3>Agents Animateurs</h3>
+            <div class="value">{{ animateurs_total_agents }}</div>
         </div>
         <div class="kpi-card">
-            <h3>💰 Total Transport à Payer</h3>
-            <div class="value">{{ total_transport|floatformat:0 }} FCFA</div>
+            <h3>Total Transport à Payer</h3>
+            <div class="value">{{ animateurs_total_transport|floatformat:0 }} FCFA</div>
         </div>
     </div>
-    
-    <!-- Tableau Animateurs -->
+
     <div class="table-container">
-        <table>
+        <table id="table-animateurs">
             <thead>
                 <tr>
                     <th>Agent</th>
                     <th>Volume réalisé (FCFA)</th>
-                    <th>Transport (10%)</th>
+                    <th>Transport (10%, plaf. 50 000)</th>
                 </tr>
             </thead>
             <tbody>
-                {% for agent in agents %}
-                <tr class="clickable-row" onclick="loadDetail('animateur', {{ agent.agent.id }}, '{{ date_debut|date:"Y-m-d" }}', '{{ date_fin|date:"Y-m-d" }}', 'anim-{{ forloop.counter }}')">
-                    <td>{{ agent.agent.numero }}</td>
-                    <td>{{ agent.volume_realise|floatformat:0 }} FCFA</td>
-                    <td>{{ agent.transport|floatformat:0 }} FCFA</td>
+                {% for ag in animateurs %}
+                <tr class="clickable-row agent-row" onclick="loadDetailAnimateur({{ ag.agent.id }}, '{{ date_debut|date:"Y-m-d" }}', '{{ date_fin|date:"Y-m-d" }}', {{ forloop.counter }})">
+                    <td>{{ ag.agent.numero }}</td>
+                    <td>{{ ag.volume_realise|floatformat:0 }} FCFA</td>
+                    <td>{{ ag.transport|floatformat:0 }} FCFA</td>
                 </tr>
                 <tr id="detail-anim-{{ forloop.counter }}" class="detail-row">
                     <td colspan="3" class="detail-cell">
@@ -136,26 +169,150 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr>
-                    <td colspan="3" style="text-align: center;">Aucun agent animateur trouvé</td>
-                </tr>
+                <tr><td colspan="3" style="text-align:center;">Aucun agent animateur trouvé</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        <div class="pagination-bar" id="pagination-animateurs">
+            <button id="prev-animateurs" onclick="changePage('animateurs',-1)">Précédent</button>
+            <span class="page-info" id="page-info-animateurs"></span>
+            <button id="next-animateurs" onclick="changePage('animateurs',1)">Suivant</button>
+        </div>
     </div>
 </div>
 
 <script>
-    function changeSemaine() {
-        const semaine = document.getElementById('semaine-select').value;
-        const onglet = document.querySelector('.tab-btn.active').dataset.tab;
-        window.location.href = `?semaine=${encodeURIComponent(semaine)}&onglet=${onglet}`;
+// ===== PAGINATION =====
+const PAGE_SIZE = 20;
+const pages = { openers: 1, animateurs: 1 };
+
+function getAgentRows(tabName) {
+    return Array.from(document.querySelectorAll('#table-' + tabName + ' tbody tr.agent-row'));
+}
+
+function applyPage(tabName) {
+    const rows = getAgentRows(tabName);
+    const total = rows.length;
+    if (total === 0) {
+        document.getElementById('pagination-' + tabName).style.display = 'none';
+        return;
+    }
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    const cur = pages[tabName];
+    const start = (cur - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+
+    rows.forEach((row, i) => {
+        const visible = i >= start && i < end;
+        row.style.display = visible ? '' : 'none';
+        // detail row is the next sibling
+        const detail = row.nextElementSibling;
+        if (detail && detail.classList.contains('detail-row')) {
+            if (!visible) detail.classList.remove('active');
+            // no explicit display set — detail-row.active class handles it
+        }
+    });
+
+    const info = document.getElementById('page-info-' + tabName);
+    info.textContent = `Page ${cur} / ${totalPages}`;
+    document.getElementById('prev-' + tabName).disabled = cur === 1;
+    document.getElementById('next-' + tabName).disabled = cur === totalPages;
+
+    if (totalPages <= 1) {
+        document.getElementById('pagination-' + tabName).style.display = 'none';
+    }
+}
+
+function changePage(tabName, direction) {
+    const rows = getAgentRows(tabName);
+    const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+    pages[tabName] = Math.max(1, Math.min(totalPages, pages[tabName] + direction));
+    applyPage(tabName);
+}
+
+// ===== ONGLETS =====
+function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    document.querySelector('.tab-btn[data-tab="' + tabName + '"]').classList.add('active');
+    const url = new URL(window.location.href);
+    url.searchParams.set('onglet', tabName);
+    window.history.pushState({}, '', url);
+}
+
+function changeSemaine() {
+    const semaine = document.getElementById('semaine-select').value;
+    const onglet = document.querySelector('.tab-btn.active').dataset.tab;
+    window.location.href = '?semaine=' + encodeURIComponent(semaine) + '&onglet=' + onglet;
+}
+
+function exportExcel() {
+    const semaine = document.getElementById('semaine-select').value;
+    const onglet = document.querySelector('.tab-btn.active').dataset.tab;
+    window.location.href = '/export-excel/?semaine=' + encodeURIComponent(semaine) + '&onglet=' + onglet;
+}
+
+// ===== DETAIL OPENER =====
+function loadDetailOpener(agentId, dateDebut, dateFin, rowId) {
+    const detailRow = document.getElementById('detail-op-' + rowId);
+    const detailDiv = document.getElementById('detail-content-op-' + rowId);
+
+    if (detailDiv.innerHTML.trim() !== '') {
+        detailRow.classList.toggle('active');
+        return;
     }
 
-    function exportExcel() {
-        const semaine = document.getElementById('semaine-select').value;
-        const onglet = document.querySelector('.tab-btn.active').dataset.tab;
-        window.location.href = `/export-excel/?semaine=${encodeURIComponent(semaine)}&onglet=${onglet}`;
+    detailDiv.innerHTML = '<div style="text-align:center;padding:1rem;">Chargement...</div>';
+    detailRow.classList.add('active');
+
+    fetch('/api/detail-opener/?agent_id=' + agentId + '&date_debut=' + dateDebut + '&date_fin=' + dateFin)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { detailDiv.innerHTML = '<div style="color:red;padding:1rem;">Erreur: ' + data.error + '</div>'; return; }
+            let html = '<table class="detail-table"><thead><tr><th>Jour</th><th>Date</th><th>Créations</th></tr></thead><tbody>';
+            for (const j of data.jours) {
+                html += '<tr><td>' + j.jour_semaine + '</td><td>' + j.date + '</td><td>' + j.realisation + '</td></tr>';
+            }
+            html += '<tr class="total-row"><td colspan="2"><strong>TOTAL</strong></td><td><strong>' + data.total_realisation + '</strong> (' + data.taux + '%) — Transport: <strong>' + (data.transport).toLocaleString() + ' FCFA</strong></td></tr>';
+            html += '</tbody></table>';
+            detailDiv.innerHTML = html;
+        })
+        .catch(e => { detailDiv.innerHTML = '<div style="color:red;padding:1rem;">Erreur: ' + e.message + '</div>'; });
+}
+
+// ===== DETAIL ANIMATEUR =====
+function loadDetailAnimateur(agentId, dateDebut, dateFin, rowId) {
+    const detailRow = document.getElementById('detail-anim-' + rowId);
+    const detailDiv = document.getElementById('detail-content-anim-' + rowId);
+
+    if (detailDiv.innerHTML.trim() !== '') {
+        detailRow.classList.toggle('active');
+        return;
     }
+
+    detailDiv.innerHTML = '<div style="text-align:center;padding:1rem;">Chargement...</div>';
+    detailRow.classList.add('active');
+
+    fetch('/api/detail-animateur/?agent_id=' + agentId + '&date_debut=' + dateDebut + '&date_fin=' + dateFin)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { detailDiv.innerHTML = '<div style="color:red;padding:1rem;">Erreur: ' + data.error + '</div>'; return; }
+            let html = '<table class="detail-table"><thead><tr><th>Jour</th><th>Date</th><th>Volume (FCFA)</th><th>Transport (FCFA)</th></tr></thead><tbody>';
+            for (const j of data.jours) {
+                html += '<tr><td>' + j.jour_semaine + '</td><td>' + j.date + '</td><td>' + (j.volume || 0).toLocaleString() + '</td><td>' + (j.transport || 0).toLocaleString() + '</td></tr>';
+            }
+            html += '<tr class="total-row"><td colspan="2"><strong>TOTAL</strong></td><td><strong>' + (data.total_volume || 0).toLocaleString() + '</strong></td><td><strong>' + (data.total_transport || 0).toLocaleString() + '</strong></td></tr>';
+            html += '</tbody></table>';
+            detailDiv.innerHTML = html;
+        })
+        .catch(e => { detailDiv.innerHTML = '<div style="color:red;padding:1rem;">Erreur: ' + e.message + '</div>'; });
+}
+
+// Init pagination on load
+document.addEventListener('DOMContentLoaded', function() {
+    applyPage('openers');
+    applyPage('animateurs');
+});
 </script>
 {% endblock %}
