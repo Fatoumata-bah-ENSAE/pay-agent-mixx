@@ -4,6 +4,7 @@ Logique métier pour openers et animateurs
 """
 
 from datetime import datetime, timedelta
+from decimal import Decimal
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from ..agents.models import Agent, CreationMarchand, SuiviMarchand
@@ -20,8 +21,8 @@ class TransportService:
     OBJECTIF_OPENER = 5  # 5 créations par semaine
     SEUIL_OPENER = 3     # Seuil minimal pour toucher le transport
     TRANSPORT_BASE_OPENER = 6000  # 6000 FCFA fixe
-    PLAFOND_ANIMATEUR = 50000     # 50000 FCFA max par semaine
-    TAUX_ANIMATEUR = 0.10         # 10% du volume journalier
+    PLAFOND_ANIMATEUR = Decimal('50000')  # 50000 FCFA max par semaine
+    TAUX_ANIMATEUR = Decimal('0.10')     # 10% du volume journalier
 
     @staticmethod
     def get_semaine_dates(date_reference):

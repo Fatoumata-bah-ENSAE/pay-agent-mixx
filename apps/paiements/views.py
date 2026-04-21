@@ -157,13 +157,13 @@ def get_detail_animateur(request):
                 {
                     'date': j['date'].strftime('%d/%m/%Y'),
                     'jour_semaine': j['jour_semaine'],
-                    'volume': j['volume'],
-                    'transport': j['transport']
+                    'volume': float(j['volume']),
+                    'transport': float(j['transport'])
                 }
                 for j in jours
             ],
-            'total_volume': total_volume,
-            'total_transport': total_transport,
+            'total_volume': float(total_volume),
+            'total_transport': float(total_transport),
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
