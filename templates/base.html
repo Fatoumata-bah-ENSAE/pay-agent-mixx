@@ -367,7 +367,10 @@
         <div class="navbar-user">
             <span>{{ user.username }}</span>
             <button id="sync-btn" onclick="lancerSync()" class="sync-btn">Synchroniser</button>
-            <a href="{% url 'logout' %}" class="logout-btn">Déconnexion</a>
+            <form method="post" action="{% url 'logout' %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn">Déconnexion</button>
+            </form>
         </div>
     </nav>
     <div id="sync-banner" style="display:none; padding:0.6rem 2rem; font-size:0.9rem; font-weight:600;"></div>
