@@ -1,1 +1,1 @@
-web: gunicorn mixxpay_agents.wsgi:application
+web: gunicorn mixxpay_agents.wsgi:application --timeout 120 --workers 1
