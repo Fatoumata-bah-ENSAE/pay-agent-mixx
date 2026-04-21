@@ -2,12 +2,20 @@
 Service d'export Excel pour les paiements de transport
 """
 
+from decimal import Decimal
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 from django.http import HttpResponse
 from .services import TransportService
+
+
+def _to_num(value):
+    """Convertit Decimal en float pour openpyxl."""
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
 
 
 class ExcelExport:
@@ -51,17 +59,17 @@ class ExcelExport:
         ExcelExport._add_header(ws_detail, "Openers - Détail journalier", date_debut, date_fin)
         
         # Feuille Résumé
-        headers = ["Agent", "Équipe", "Team", "Objectif", "Seuil", "Réalisation", "Taux (%)", "Transport base", "Transport net", "Statut"]
+        headers = ["Agent", "Equipe", "Team", "Objectif", "Seuil", "Realisation", "Taux (%)", "Transport base", "Transport net", "Statut"]
         ExcelExport._add_table(ws_resume, headers, data['agents'], 5, {
             'Agent': lambda a: a['agent'].numero,
-            'Équipe': lambda a: a['agent'].equipe,
+            'Equipe': lambda a: a['agent'].equipe or '-',
             'Team': lambda a: a['agent'].team or '-',
             'Objectif': lambda a: a['objectif'],
             'Seuil': lambda a: a['seuil'],
-            'Réalisation': lambda a: a['realisation'],
-            'Taux (%)': lambda a: a['taux'],
-            'Transport base': lambda a: a['transport_base'],
-            'Transport net': lambda a: a['transport_net'],
+            'Realisation': lambda a: a['realisation'],
+            'Taux (%)': lambda a: _to_num(a['taux']),
+            'Transport base': lambda a: _to_num(a['transport_base']),
+            'Transport net': lambda a: _to_num(a['transport_net']),
             'Statut': lambda a: a['statut'],
         })
         
@@ -142,18 +150,18 @@ class ExcelExport:
         ExcelExport._add_header(ws_detail, "Animateurs - Détail journalier", date_debut, date_fin)
         
         # Feuille Résumé
-        headers = ["Agent", "Volume réalisé (FCFA)", "Transport à payer (FCFA)"]
+        headers = ["Agent", "Volume realise (FCFA)", "Transport a payer (FCFA)"]
         ExcelExport._add_table(ws_resume, headers, data['agents'], 5, {
             'Agent': lambda a: a['agent'].numero,
-            'Volume réalisé (FCFA)': lambda a: a['volume_realise'],
-            'Transport à payer (FCFA)': lambda a: a['transport'],
+            'Volume realise (FCFA)': lambda a: _to_num(a['volume_realise']),
+            'Transport a payer (FCFA)': lambda a: _to_num(a['transport']),
         })
-        
+
         # Ajouter les totaux
         row = ws_resume.max_row + 2
         ws_resume.cell(row=row, column=1, value="TOTAUX").font = Font(bold=True)
-        ws_resume.cell(row=row, column=2, value=sum(a['volume_realise'] for a in data['agents']))
-        ws_resume.cell(row=row, column=3, value=data['total_transport'])
+        ws_resume.cell(row=row, column=2, value=_to_num(sum(a['volume_realise'] for a in data['agents'])))
+        ws_resume.cell(row=row, column=3, value=_to_num(data['total_transport']))
         ws_resume.cell(row=row, column=2).number_format = '#,##0'
         ws_resume.cell(row=row, column=3).number_format = '#,##0'
         
@@ -183,16 +191,16 @@ class ExcelExport:
             for jour in jours:
                 ws_detail.cell(row=current_row, column=1, value=jour['jour_semaine'])
                 ws_detail.cell(row=current_row, column=2, value=jour['date'].strftime('%d/%m/%Y'))
-                ws_detail.cell(row=current_row, column=3, value=jour['volume'])
-                ws_detail.cell(row=current_row, column=4, value=jour['transport'])
+                ws_detail.cell(row=current_row, column=3, value=_to_num(jour['volume']))
+                ws_detail.cell(row=current_row, column=4, value=_to_num(jour['transport']))
                 ws_detail.cell(row=current_row, column=3).number_format = '#,##0'
                 ws_detail.cell(row=current_row, column=4).number_format = '#,##0'
                 current_row += 1
-            
+
             # Ligne de total
             ws_detail.cell(row=current_row, column=1, value="TOTAL").font = Font(bold=True)
-            ws_detail.cell(row=current_row, column=3, value=agent_data['volume_realise'])
-            ws_detail.cell(row=current_row, column=4, value=agent_data['transport'])
+            ws_detail.cell(row=current_row, column=3, value=_to_num(agent_data['volume_realise']))
+            ws_detail.cell(row=current_row, column=4, value=_to_num(agent_data['transport']))
             ws_detail.cell(row=current_row, column=3).number_format = '#,##0'
             ws_detail.cell(row=current_row, column=4).number_format = '#,##0'
             current_row += 2
@@ -250,9 +258,9 @@ class ExcelExport:
                 cell.border = ExcelExport.BORDER
                 
                 # Formater les nombres
-                if isinstance(value, (int, float)) and header not in ['Agent', 'Équipe', 'Team', 'Statut']:
+                if isinstance(value, (int, float, Decimal)) and header not in ['Agent', 'Equipe', 'Equipe', 'Team', 'Statut']:
                     cell.number_format = '#,##0'
-                
+
                 # Colorer le statut
                 if header == 'Statut' and value == 'Atteint':
                     cell.fill = ExcelExport.SUCCESS_FILL

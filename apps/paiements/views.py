@@ -159,6 +159,7 @@ def salaire_view(request):
 @login_required
 def export_excel_view(request):
     from .exports import ExcelExport
+    import traceback
 
     semaine_str = request.GET.get('semaine')
     onglet = request.GET.get('onglet', 'openers')
@@ -171,7 +172,14 @@ def export_excel_view(request):
         date_debut = datetime(2026, 4, 13).date()
         date_fin = datetime(2026, 4, 19).date()
 
-    if onglet == 'openers':
-        return ExcelExport.export_openers(date_debut, date_fin)
-    else:
-        return ExcelExport.export_animateurs(date_debut, date_fin)
+    try:
+        if onglet == 'openers':
+            return ExcelExport.export_openers(date_debut, date_fin)
+        else:
+            return ExcelExport.export_animateurs(date_debut, date_fin)
+    except Exception as e:
+        return HttpResponse(
+            f"Erreur lors de l'export : {e}\n\n{traceback.format_exc()}",
+            content_type='text/plain',
+            status=500
+        )
