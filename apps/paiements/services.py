@@ -41,27 +41,36 @@ class TransportService:
     @staticmethod
     def get_semaines_disponibles():
         """
-        Retourne la liste des semaines disponibles dans les données
+        Retourne la liste des semaines depuis le début du projet jusqu'à
+        la semaine en cours — même si certaines n'ont pas encore de données.
+        On ajoute aussi toutes les semaines qui ont des données réelles.
         """
-        # Pour les openers (à partir du 2026-04-13)
-        dates_creation = CreationMarchand.objects.filter(
-            date_activite__gte='2026-04-13'
-        ).dates('date_activite', 'week')
-        
-        # Pour les animateurs (à partir du 2026-04-14)
-        dates_suivi = SuiviMarchand.objects.filter(
-            date_activite__gte='2026-04-14'
-        ).dates('date_activite', 'week')
-        
+        from datetime import date as date_type
+
         semaines = set()
-        for date in dates_creation:
-            start, end = TransportService.get_semaine_dates(date)
-            semaines.add((start, end))
-        
-        for date in dates_suivi:
-            start, end = TransportService.get_semaine_dates(date)
-            semaines.add((start, end))
-        
+
+        # ── Semaines avec données réelles ────────────────────────────────
+        for d in CreationMarchand.objects.filter(
+            date_activite__gte='2026-04-13'
+        ).dates('date_activite', 'week'):
+            semaines.add(TransportService.get_semaine_dates(d))
+
+        for d in SuiviMarchand.objects.filter(
+            date_activite__gte='2026-04-14'
+        ).dates('date_activite', 'week'):
+            semaines.add(TransportService.get_semaine_dates(d))
+
+        # ── Toujours inclure toutes les semaines depuis le lancement ─────
+        # (lundi 13 avril 2026 = première semaine du projet)
+        lundi_lancement = date_type(2026, 4, 13)
+        today = date_type.today()
+        lundi_courant = today - timedelta(days=today.weekday())
+
+        lundi = lundi_lancement
+        while lundi <= lundi_courant:
+            semaines.add((lundi, lundi + timedelta(days=6)))
+            lundi += timedelta(weeks=1)
+
         return sorted(list(semaines), key=lambda x: x[0])
 
     @staticmethod

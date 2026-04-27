@@ -4,7 +4,7 @@ Récupération, mapping et insertion des données
 """
 
 import requests
-from datetime import datetime, timezone as dt_tz
+from datetime import datetime, timedelta, timezone as dt_tz
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.utils import timezone
@@ -109,27 +109,52 @@ class KoboService:
                 agent.save()
         return agent, created
 
-    def sync_creations(self):
+    def _fetch_kobo_data(self, uid, date_min_iso):
         """
-        Synchronise les soumissions du formulaire Création Marchand
-        Filtre les données à partir du 2026-04-13
+        Récupère toutes les soumissions Kobo depuis date_min_iso (format ISO 8601).
+        Utilise le paramètre ?query= de l'API pour ne charger que les nouvelles.
         """
-        print("Début synchronisation des créations marchand...")
-
-        mappings = self.get_mappings(settings.KOBO_UID_CREATION)
-
-        url = f"{self.base_url}/api/v2/assets/{settings.KOBO_UID_CREATION}/data/?format=json"
+        import json
+        query = json.dumps({"_submission_time": {"$gt": date_min_iso}})
+        base = (
+            f"{self.base_url}/api/v2/assets/{uid}/data/"
+            f"?format=json&query={requests.utils.quote(query)}"
+        )
         all_data = []
-
+        url = base
         while url:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=60)
             response.raise_for_status()
             data = response.json()
             results = data.get('results', [])
             all_data.extend(results)
             url = data.get('next')
-            print(f"  Récupéré {len(results)} soumissions...")
+            print(f"  Récupéré {len(results)} soumissions (total: {len(all_data)})...")
+        return all_data
 
+    def sync_creations(self):
+        """
+        Synchronise les soumissions du formulaire Création Marchand.
+        Sync incrémentale : ne télécharge que les soumissions postérieures
+        à la dernière date déjà en base (ou depuis 2026-04-13 si base vide).
+        """
+        print("Début synchronisation des créations marchand...")
+
+        mappings = self.get_mappings(settings.KOBO_UID_CREATION)
+
+        # Date de départ : dernière soumission connue ou début projet
+        derniere = CreationMarchand.objects.order_by('-date_soumission').values_list(
+            'date_soumission', flat=True
+        ).first()
+        if derniere:
+            # Recule d'1 heure pour éviter les soumissions à la seconde près
+            depuis = (derniere - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S')
+            print(f"  Sync incrémentale depuis {depuis}")
+        else:
+            depuis = '2026-04-12T23:59:59'
+            print("  Première sync : récupération complète depuis le 2026-04-13")
+
+        all_data = self._fetch_kobo_data(settings.KOBO_UID_CREATION, depuis)
         print(f"Total soumissions récupérées: {len(all_data)}")
 
         date_min = datetime(2026, 4, 13, 0, 0, 0, tzinfo=UTC)
@@ -270,25 +295,26 @@ class KoboService:
 
     def sync_suivis(self):
         """
-        Synchronise les soumissions du formulaire Suivi Marchand
-        Filtre les données à partir du 2026-04-14
+        Synchronise les soumissions du formulaire Suivi Marchand.
+        Sync incrémentale : ne télécharge que les soumissions postérieures
+        à la dernière date déjà en base (ou depuis 2026-04-14 si base vide).
         """
         print("Début synchronisation des suivis marchand...")
 
         mappings = self.get_mappings(settings.KOBO_UID_SUIVI)
 
-        url = f"{self.base_url}/api/v2/assets/{settings.KOBO_UID_SUIVI}/data/?format=json"
-        all_data = []
+        # Date de départ : dernière soumission connue ou début projet
+        derniere = SuiviMarchand.objects.order_by('-date_soumission').values_list(
+            'date_soumission', flat=True
+        ).first()
+        if derniere:
+            depuis = (derniere - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S')
+            print(f"  Sync incrémentale depuis {depuis}")
+        else:
+            depuis = '2026-04-13T23:59:59'
+            print("  Première sync : récupération complète depuis le 2026-04-14")
 
-        while url:
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
-            data = response.json()
-            results = data.get('results', [])
-            all_data.extend(results)
-            url = data.get('next')
-            print(f"  Récupéré {len(results)} soumissions...")
-
+        all_data = self._fetch_kobo_data(settings.KOBO_UID_SUIVI, depuis)
         print(f"Total soumissions récupérées: {len(all_data)}")
 
         date_min = datetime(2026, 4, 14, 0, 0, 0, tzinfo=UTC)
